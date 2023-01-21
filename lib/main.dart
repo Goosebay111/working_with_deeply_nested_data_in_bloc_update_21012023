@@ -1,10 +1,14 @@
+// ignore_for_file: prefer_const_literals_to_create_immutables
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 main() => runApp(const MyApp());
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-@override
+  @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CollectionBloc(),
@@ -14,9 +18,10 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
 class MyHomePage extends StatelessWidget {
   const MyHomePage({super.key});
-@override
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<CollectionBloc, CollectionState>(
       builder: (context, state) {
@@ -33,8 +38,8 @@ class MyHomePage extends StatelessWidget {
               return Padding(
                 padding: EdgeInsets.only(left: distance),
                 child: ListTile(
-                  onTap: () => addToCollectionLogic(nodes.showType, index,
-                      nodes.children.length, context),
+                  onTap: () =>
+                      nodes.showType.fx(nodes.children.length, index, context),
                   leading: Card(
                     child: Text(nodes.name, style: TextStyle(color: textColor)),
                   ),
@@ -46,33 +51,54 @@ class MyHomePage extends StatelessWidget {
       },
     );
   }
-double getPaddingDistance(CollectionState nodes) {
-    switch (nodes.showType) {
-      case ShowType.collection:
-        return 0;
-      case ShowType.series:
-        return 20;
-      case ShowType.season:
-        return 40;
-      case ShowType.episode:
-        return 60;
-    }
-  }
-Color getColor(CollectionState nodes) {
-    switch (nodes.showType) {
-      case ShowType.collection:
-        return Colors.black;
-      case ShowType.series:
-        return Colors.blue;
-      case ShowType.season:
-        return Colors.green;
-      case ShowType.episode:
-        return Colors.red;
-    }
-  }
+
+  double getPaddingDistance(CollectionState nodes) =>
+      nodes.showType.paddingDistance.toDouble();
+
+  Color getColor(CollectionState nodes) => nodes.showType.textColor;
 }
 
-enum ShowType { collection, series, season, episode }
+abstract class ShowType2 {
+  ShowType2(this.paddingDistance, this.textColor, this.fx);
+  final int paddingDistance;
+  final Color textColor;
+  final Function fx;
+}
+
+class Collection extends ShowType2 {
+  Collection()
+      : super(
+          0,
+          Colors.black,
+          (int count, int index, BuildContext context) => addToCollection(
+              'Series ${count + 1}', index, Series(), context, true),
+        );
+}
+
+class Series extends ShowType2 {
+  Series()
+      : super(
+            20,
+            Colors.blue,
+            (int count, int index, BuildContext context) => addToCollection(
+                'Season ${count + 1}', index, Season(), context, false));
+}
+
+class Season extends ShowType2 {
+  Season()
+      : super(
+            40,
+            Colors.green,
+            (int count, int index, BuildContext context) => addToCollection(
+                'Episode ${count + 1}', index, Episode(), context, false));
+}
+
+class Episode extends ShowType2 {
+  Episode()
+      : super(
+            60, Colors.red, (int count, int index, BuildContext context) => {});
+}
+
 class CollectionState extends Equatable {
   const CollectionState({
     required this.name,
@@ -82,17 +108,17 @@ class CollectionState extends Equatable {
   });
   final String name;
   final List<CollectionState> children;
-  final ShowType showType;
+  final ShowType2 showType;
   final int heartbeats;
-factory CollectionState.initial() {
-    return const CollectionState(
+  factory CollectionState.initial() {
+    return CollectionState(
       name: "Collection",
-      showType: ShowType.collection,
+      showType: Collection(),
       children: [],
       heartbeats: 0,
     );
   }
-List<CollectionState> getAllNodes(CollectionState node) {
+  List<CollectionState> getAllNodes(CollectionState node) {
     List<CollectionState> result = [];
     result.add(node);
     for (CollectionState child in node.children) {
@@ -100,10 +126,11 @@ List<CollectionState> getAllNodes(CollectionState node) {
     }
     return result;
   }
-CollectionState copyWith({
+
+  CollectionState copyWith({
     String? name,
     List<CollectionState>? children,
-    ShowType? showType,
+    ShowType2? showType,
   }) {
     return CollectionState(
       name: name ?? this.name,
@@ -112,85 +139,63 @@ CollectionState copyWith({
       heartbeats: heartbeats + 1,
     );
   }
-@override
-  List<Object> get props => [name, children, showType,
-  heartbeats
-  ];
+
+  @override
+  List<Object> get props => [name, children, showType, heartbeats];
 }
 
 abstract class CollectionEvents extends Equatable {
-@override
+  @override
   List<Object> get props => [];
 }
+
 class AddToTopLayer extends CollectionEvents {
   AddToTopLayer({required this.index, required this.child});
-final int index;
+  final int index;
   final CollectionState child;
+  @override
+  List<Object> get props => [index, child.heartbeats];
 }
+
 class AddToNode extends CollectionEvents {
   AddToNode({required this.index, required this.child});
-final int index;
+  final int index;
   final CollectionState child;
+  @override
+  List<Object> get props => [index, child.heartbeats];
 }
 
 class CollectionBloc extends Bloc<CollectionEvents, CollectionState> {
   CollectionBloc() : super(CollectionState.initial()) {
     on<AddToTopLayer>((event, emit) =>
         emit(state.copyWith(children: [...state.children, event.child])));
-on<AddToNode>(
+    on<AddToNode>(
       (event, emit) {
         final List<CollectionState> nodes = state.getAllNodes(state);
         final CollectionState parent = nodes[event.index];
         parent.children.add(event.child);
 
         emit(state.copyWith(children: [...state.children]));
-        
       },
     );
   }
 }
 
-void addToCollectionLogic(
-    ShowType showType, int index, int count, BuildContext context) {
-  switch (showType) {
-    case ShowType.collection:
-      addToTopLayer('Series ${count + 1}', index, ShowType.series, context);
-      break;
-    case ShowType.series:
-      addToNodes('Season ${count + 1}', index, ShowType.season, context);
-      break;
-    case ShowType.season:
-      addToNodes('Episode ${count + 1}', index, ShowType.episode, context);
-      break;
-    case ShowType.episode:
-      break;
+void addToCollection(String name, int index, ShowType2 showType2,
+    BuildContext context, bool isTopLayer) {
+  CollectionEvents event;
+  if (isTopLayer) {
+    event = AddToTopLayer(
+      index: index,
+      child: CollectionState(
+          name: name, showType: showType2, children: [], heartbeats: 0),
+    );
+  } else {
+    event = AddToNode(
+      index: index,
+      child: CollectionState(
+          name: name, showType: showType2, children: [], heartbeats: 0),
+    );
   }
-}
-void addToTopLayer(name, index, showType, context) {
-  BlocProvider.of<CollectionBloc>(context).add(
-    AddToTopLayer(
-      index: index,
-      child: CollectionState(
-        name: name,
-        showType: showType,
-        children: [],
-        // todo: add this code.
-        heartbeats: 0
-      ),
-    ),
-  );
-}
-void addToNodes(name, index, showType, context) {
-  BlocProvider.of<CollectionBloc>(context).add(
-    AddToNode(
-      index: index,
-      child: CollectionState(
-        name: name,
-        showType: showType,
-        children: [],
-        // todo: add this code.
-        heartbeats: 0
-      ),
-    ),
-  );
+  BlocProvider.of<CollectionBloc>(context).add(event);
 }
