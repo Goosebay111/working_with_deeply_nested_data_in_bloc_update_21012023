@@ -30,9 +30,9 @@ class MyHomePage extends StatelessWidget {
             title: const Text('Deeply nested data and Bloc 8.0.0+'),
           ),
           body: ListView.builder(
-            itemCount: state.getAllNodes(state).length,
+            itemCount: getAllNodes(state).length,
             itemBuilder: (context, index) {
-              var nodes = state.getAllNodes(state)[index];
+              var nodes = getAllNodes(state)[index];
               Color textColor = getColor(nodes);
               double distance = getPaddingDistance(nodes);
               return Padding(
@@ -53,29 +53,28 @@ class MyHomePage extends StatelessWidget {
   }
 
   double getPaddingDistance(CollectionState nodes) =>
-      nodes.showType.paddingDistance.toDouble();
+      nodes.showType.paddingDistance;
 
   Color getColor(CollectionState nodes) => nodes.showType.textColor;
 }
 
-abstract class ShowType2 {
-  ShowType2(this.paddingDistance, this.textColor, this.fx);
-  final int paddingDistance;
+abstract class ShowType {
+  ShowType(this.paddingDistance, this.textColor, this.fx);
+  final double paddingDistance;
   final Color textColor;
   final Function fx;
 }
 
-class Collection extends ShowType2 {
+class Collection extends ShowType {
   Collection()
       : super(
-          0,
-          Colors.black,
-          (int count, int index, BuildContext context) => addToCollection(
-              'Series ${count + 1}', index, Series(), context, true),
-        );
+            0,
+            Colors.black,
+            (int count, int index, BuildContext context) => addToCollection(
+                'Series ${count + 1}', index, Series(), context, true));
 }
 
-class Series extends ShowType2 {
+class Series extends ShowType {
   Series()
       : super(
             20,
@@ -84,7 +83,7 @@ class Series extends ShowType2 {
                 'Season ${count + 1}', index, Season(), context, false));
 }
 
-class Season extends ShowType2 {
+class Season extends ShowType {
   Season()
       : super(
             40,
@@ -93,10 +92,32 @@ class Season extends ShowType2 {
                 'Episode ${count + 1}', index, Episode(), context, false));
 }
 
-class Episode extends ShowType2 {
+class Episode extends ShowType {
   Episode()
       : super(
             60, Colors.red, (int count, int index, BuildContext context) => {});
+}
+
+class CollectionBloc extends Bloc<CollectionEvents, CollectionState> {
+  CollectionBloc() : super(CollectionState.initial()) {
+    on<AddToTopLayer>((event, emit) =>
+        emit(state.copyWith(children: [...state.children, event.child])));
+    on<AddToNode>(
+      (event, emit) {
+        final List<CollectionState> nodes = getAllNodes(state);
+        final CollectionState parent = nodes[event.index];
+        parent.children.add(event.child);
+        emit(state.copyWith(children: [...state.children]));
+      },
+    );
+  }
+}
+
+List<CollectionState> getAllNodes(CollectionState node) {
+  return node.children.fold(
+    [node],
+    (previousValue, element) => [...previousValue, ...getAllNodes(element)],
+  );
 }
 
 class CollectionState extends Equatable {
@@ -108,8 +129,9 @@ class CollectionState extends Equatable {
   });
   final String name;
   final List<CollectionState> children;
-  final ShowType2 showType;
+  final ShowType showType;
   final int heartbeats;
+
   factory CollectionState.initial() {
     return CollectionState(
       name: "Collection",
@@ -118,19 +140,11 @@ class CollectionState extends Equatable {
       heartbeats: 0,
     );
   }
-  List<CollectionState> getAllNodes(CollectionState node) {
-    List<CollectionState> result = [];
-    result.add(node);
-    for (CollectionState child in node.children) {
-      result.addAll(getAllNodes(child));
-    }
-    return result;
-  }
 
   CollectionState copyWith({
     String? name,
     List<CollectionState>? children,
-    ShowType2? showType,
+    ShowType? showType,
   }) {
     return CollectionState(
       name: name ?? this.name,
@@ -149,39 +163,7 @@ abstract class CollectionEvents extends Equatable {
   List<Object> get props => [];
 }
 
-class AddToTopLayer extends CollectionEvents {
-  AddToTopLayer({required this.index, required this.child});
-  final int index;
-  final CollectionState child;
-  @override
-  List<Object> get props => [index, child.heartbeats];
-}
-
-class AddToNode extends CollectionEvents {
-  AddToNode({required this.index, required this.child});
-  final int index;
-  final CollectionState child;
-  @override
-  List<Object> get props => [index, child.heartbeats];
-}
-
-class CollectionBloc extends Bloc<CollectionEvents, CollectionState> {
-  CollectionBloc() : super(CollectionState.initial()) {
-    on<AddToTopLayer>((event, emit) =>
-        emit(state.copyWith(children: [...state.children, event.child])));
-    on<AddToNode>(
-      (event, emit) {
-        final List<CollectionState> nodes = state.getAllNodes(state);
-        final CollectionState parent = nodes[event.index];
-        parent.children.add(event.child);
-
-        emit(state.copyWith(children: [...state.children]));
-      },
-    );
-  }
-}
-
-void addToCollection(String name, int index, ShowType2 showType2,
+void addToCollection(String name, int index, ShowType showType2,
     BuildContext context, bool isTopLayer) {
   CollectionEvents event;
   if (isTopLayer) {
@@ -198,4 +180,20 @@ void addToCollection(String name, int index, ShowType2 showType2,
     );
   }
   BlocProvider.of<CollectionBloc>(context).add(event);
+}
+
+class AddToTopLayer extends CollectionEvents {
+  AddToTopLayer({required this.index, required this.child});
+  final int index;
+  final CollectionState child;
+  @override
+  List<Object> get props => [index, child.heartbeats];
+}
+
+class AddToNode extends CollectionEvents {
+  AddToNode({required this.index, required this.child});
+  final int index;
+  final CollectionState child;
+  @override
+  List<Object> get props => [index, child.heartbeats];
 }
