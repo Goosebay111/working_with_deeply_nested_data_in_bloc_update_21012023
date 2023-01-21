@@ -57,16 +57,38 @@ class ShowType {
   final Color textColor;
   final Function fx;
 
-  ShowType._({required this.paddingDistance, required this.textColor, required this.fx});
+  ShowType._(
+      {required this.paddingDistance,
+      required this.textColor,
+      required this.fx});
 
-  factory ShowType.collection() => ShowType._(paddingDistance: 0, textColor: Colors.black, fx: (int count, int index, BuildContext context) => addToCollection('Series ${count + 1}', index, ShowType.series(), context));
-  factory ShowType.series() => ShowType._(paddingDistance: 20, textColor: Colors.blue, fx: (int count, int index, BuildContext context) => addToCollection('Season ${count + 1}', index, ShowType.season(), context));
-  factory ShowType.season() => ShowType._(paddingDistance: 40, textColor: Colors.green, fx: (int count, int index, BuildContext context) => addToCollection('Episode ${count + 1}', index, ShowType.episode(), context));
-  factory ShowType.episode() => ShowType._(paddingDistance: 60, textColor: Colors.red, fx: (int count, int index, BuildContext context) => {});
+  factory ShowType.collection() => ShowType._(
+      paddingDistance: 0,
+      textColor: Colors.black,
+      fx: (int count, int index, BuildContext context) => addToCollection(
+          'Series ${count + 1}', index, ShowType.series(), context));
+  factory ShowType.series() => ShowType._(
+      paddingDistance: 20,
+      textColor: Colors.blue,
+      fx: (int count, int index, BuildContext context) => addToCollection(
+          'Season ${count + 1}', index, ShowType.season(), context));
+  factory ShowType.season() => ShowType._(
+      paddingDistance: 40,
+      textColor: Colors.green,
+      fx: (int count, int index, BuildContext context) => addToCollection(
+          'Episode ${count + 1}', index, ShowType.episode(), context));
+  factory ShowType.episode() => ShowType._(
+      paddingDistance: 60,
+      textColor: Colors.red,
+      fx: (int count, int index, BuildContext context) => {});
 }
 
 class CollectionBloc extends Bloc<CollectionEvents, CollectionState> {
-  CollectionBloc() : super(CollectionState.initial()) {
+  CollectionBloc()
+      : super(InitialState(
+            name: 'Collection',
+            showType: ShowType.collection(),
+            children: const [])) {
     on<AddToNode>((event, emit) {
       /// as expected...
       final List<CollectionState> nodes = getAllNodes(state);
@@ -127,30 +149,62 @@ This way, the function will return all the nodes of the tree in a single flatten
   );
 }
 
-class CollectionState extends Equatable {
-  const CollectionState({
-    required this.name,
-    required this.children,
-    required this.showType,
-  });
+abstract class CollectionState extends Equatable {
+  const CollectionState(
+      {required this.name, required this.children, required this.showType});
+
   final String name;
   final List<CollectionState> children;
   final ShowType showType;
-
-  factory CollectionState.initial() {
-    return CollectionState(
-      name: "Collection",
-      showType: ShowType.collection(),
-      children: const [],
-    );
-  }
 
   CollectionState copyWith({
     String? name,
     List<CollectionState>? children,
     ShowType? showType,
+  });
+}
+
+class InitialState extends CollectionState {
+  const InitialState(
+      {required String name,
+      required List<CollectionState> children,
+      required ShowType showType})
+      : super(name: name, children: children, showType: showType);
+
+  @override
+  CollectionState copyWith(
+      {String? name, List<CollectionState>? children, ShowType? showType}) {
+    return InitialState(
+      name: name ?? this.name,
+      children: children ?? this.children,
+      showType: showType ?? this.showType,
+    );
+  }
+
+  @override
+  List<Object> get props => [name, children, showType];
+}
+
+class CollectionState2 extends CollectionState {
+  const CollectionState2({
+    required this.name,
+    required this.children,
+    required this.showType,
+  }) : super(name: name, children: children, showType: showType);
+  @override
+  final String name;
+  @override
+  final List<CollectionState> children;
+  @override
+  final ShowType showType;
+
+  @override
+  CollectionState2 copyWith({
+    String? name,
+    List<CollectionState>? children,
+    ShowType? showType,
   }) {
-    return CollectionState(
+    return CollectionState2(
       name: name ?? this.name,
       children: children ?? this.children,
       showType: showType ?? this.showType,
@@ -172,7 +226,7 @@ void addToCollection(
 
   event = AddToNode(
     index: index,
-    child: CollectionState(
+    child: CollectionState2(
       name: name,
       showType: showType,
       children: const [],
@@ -185,7 +239,7 @@ void addToCollection(
 class AddToNode extends CollectionEvents {
   AddToNode({required this.index, required this.child});
   final int index;
-  final CollectionState child;
+  final CollectionState2 child;
   @override
   List<Object> get props => [index, child];
 }
